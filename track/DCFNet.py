@@ -32,13 +32,21 @@ class TrackerConfig(object):
     net_input_size = [crop_sz, crop_sz]
     net_average_image = np.array([104, 117, 123]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
-    yf_ = np.fft.fft2(gaussian_shaped_labels(output_sigma, net_input_size))
+    y = gaussian_shaped_labels(output_sigma, net_input_size)
+    # cv2.imshow('gaussian', y)
+    # cv2.waitKey(0)
+    yf_ = np.fft.fft2(y)
     yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
     yf_real = torch.Tensor(np.real(yf_))
     yf_imag = torch.Tensor(np.imag(yf_))
     yf[0, 0, :, :, 0] = yf_real
     yf[0, 0, :, :, 1] = yf_imag
+    # y = torch.irfft(yf, 2, onesided=False)
+    # cv2.imshow('gaussian', y[0,0].data.cpu().numpy())
+    # cv2.waitKey(0)
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz)))
+    # cv2.imshow('cos window', cos_window.data.cpu().numpy())
+    # cv2.waitKey(0)
 
 
 def DCFNet_init(im, target_pos, target_sz, use_gpu=True):
@@ -60,13 +68,16 @@ if __name__ == '__main__':
     for video_id, video in enumerate(videos[30:]):  # run without resetting
         video_path_name = annos[video]['name']
         init_rect = np.array(annos[video]['init_rect']).astype(np.float)
-        image_files = [join('/data1/qwang/OTB100/', video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
+        image_files = [join('/media/sensetime/memo/OTB2015', video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
         n_images = len(image_files)
 
         target_pos, target_sz = rect1_2_cxy_wh(init_rect)
 
         im = cv2.imread(image_files[0])  # HxWxC
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+
+        # cv2.imshow('image', im)
+        # cv2.waitKey(0)
 
         # init tracker
         config = TrackerConfig()
@@ -80,8 +91,10 @@ if __name__ == '__main__':
         window_sz = target_sz * (1 + config.padding)
         bbox = cxy_wh_2_bbox(target_pos, window_sz)
         patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
-        # crop = np.transpose(patch, (1, 2, 0)).astype(np.float32)
-        # cv2.imwrite('crop.jpg', crop)
+
+        # cv2.imshow('crop.jpg', np.transpose(patch, (1, 2, 0)).astype(np.float32)/255)
+        # cv2.waitKey(0)
+
         target = patch - config.net_average_image
         net.update(torch.Tensor(np.expand_dims(target, axis=0)))
 
@@ -96,13 +109,13 @@ if __name__ == '__main__':
                 window_sz = target_sz * (config.scale_factor[i] * (1 + config.padding))
                 bbox = cxy_wh_2_bbox(target_pos, window_sz)
                 patch_crop[i,:] = resample(im, bbox, config.net_input_size, [0, 0, 0])
-                # crop = np.transpose(patch_crop[i], (1, 2, 0)).astype(np.float32)
-                # cv2.imwrite('crop.jpg', crop)
+                # cv2.imshow('crop.jpg', np.transpose(patch_crop[i], (1, 2, 0)).astype(np.float32) / 255)
+                # cv2.waitKey(0)
 
             search = patch_crop - config.net_average_image
             response = net(torch.Tensor(search))
             response_cpu = response.data.cpu().numpy()
-            cv2.imwrite('response_map.jpg', response_cpu[0,0,:])
+            # cv2.imwrite('response_map.jpg', response_cpu[0,0,:])
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
             peak = peak.data.numpy() * config.scale_factor
             best_scale = np.argmax(peak)
