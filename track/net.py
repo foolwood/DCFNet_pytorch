@@ -66,8 +66,8 @@ class DCFNet(nn.Module):
             self.model_alphaf = alphaf
             self.model_zf = zf
         else:
-            self.model_alphaf = (1 - lr) * self.model_alphaf + lr * alphaf
-            self.model_zf = (1 - lr) * self.model_zf + lr * zf
+            self.model_alphaf = (1 - lr) * self.model_alphaf.data + lr * alphaf.data
+            self.model_zf = (1 - lr) * self.model_zf.data + lr * zf.data
 
     def load_param(self, path='param.pth'):
         self.feature.load_state_dict(torch.load(path))

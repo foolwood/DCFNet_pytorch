@@ -33,8 +33,6 @@ class TrackerConfig(object):
     net_average_image = np.array([123, 117, 104]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
-    # cv2.imshow('gaussian', y)
-    # cv2.waitKey(0)
     yf_ = np.fft.fft2(y)
     yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
     yf_real = torch.Tensor(np.real(yf_))
@@ -42,12 +40,7 @@ class TrackerConfig(object):
     yf[0, 0, :, :, 0] = yf_real
     yf[0, 0, :, :, 1] = yf_imag
     yf = yf.cuda()
-    # y = torch.irfft(yf, 2, onesided=False)
-    # cv2.imshow('gaussian', y[0,0].data.cpu().numpy())
-    # cv2.waitKey(0)
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
-    # cv2.imshow('cos window', cos_window.data.cpu().numpy())
-    # cv2.waitKey(0)
 
 
 def DCFNet_init(im, target_pos, target_sz, use_gpu=True):
@@ -59,6 +52,7 @@ def DCFNet_track(state, im):
 
 
 if __name__ == '__main__':
+    # base dataset path and setting
     raw_data_path = '/media/sensetime/memo/OTB2015'
     if not isdir(raw_data_path):
         raw_data_path = '/data1/qwang/OTB100'
@@ -67,32 +61,34 @@ if __name__ == '__main__':
     json_path = join('dataset', dataset + '.json')
     annos = json.load(open(json_path, 'r'))
     videos = sorted(annos.keys())
+
     use_gpu = True
     visualization = False
-    for video_id, video in enumerate(videos[30:]):  # run without resetting
+
+    # default parameter and load feature extractor network
+    config = TrackerConfig()
+    net = DCFNet(config)
+    net.load_param(config.feature_path)
+    net.eval()
+    net.cuda()
+
+    # loop videos
+    for video_id, video in enumerate(videos):  # run without resetting
         video_path_name = annos[video]['name']
         init_rect = np.array(annos[video]['init_rect']).astype(np.float)
         image_files = [join(raw_data_path, video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
         n_images = len(image_files)
 
-        target_pos, target_sz = rect1_2_cxy_wh(init_rect)
+        target_pos, target_sz = rect1_2_cxy_wh(init_rect)  # OTB label is 1-indexed
 
         im = cv2.imread(image_files[0])  # HxWxC
         im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
 
-        # cv2.imshow('image', im)
-        # cv2.waitKey(0)
-
-        # init tracker
-        config = TrackerConfig()
-        net = DCFNet(config)
-        net.load_param(config.feature_path)
-        net.eval()
-        net.cuda()
+        # confine results
         min_sz = np.maximum(config.min_scale_factor * target_sz, 4)
-        [im_h, im_w, _] = im.shape
         max_sz = np.minimum(im.shape[:2], config.max_scale_factor * target_sz)
 
+        # crop template
         window_sz = target_sz * (1 + config.padding)
         bbox = cxy_wh_2_bbox(target_pos, window_sz)
         patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
@@ -104,22 +100,20 @@ if __name__ == '__main__':
         res = [cxy_wh_2_rect1(target_pos, target_sz)]  # save in .txt
         tic = time.time()
         patch_crop = np.zeros((config.num_scale, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)
-        for f in range(1, n_images):
-            im = cv2.imread(image_files[0])
+        for f in range(1, n_images):  # track
+            im = cv2.imread(image_files[f])
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
-            # track
-            for i in range(config.num_scale):
+
+            for i in range(config.num_scale):  # crop multi-scale search region
                 window_sz = target_sz * (config.scale_factor[i] * (1 + config.padding))
                 bbox = cxy_wh_2_bbox(target_pos, window_sz)
-                patch_crop[i,:] = resample(im, bbox, config.net_input_size, [0, 0, 0])
+                patch_crop[i, :] = resample(im, bbox, config.net_input_size, [0, 0, 0])
                 # cv2.imwrite('crop2.jpg', np.transpose(patch_crop[0,::-1,:,:], (1, 2, 0)))
                 # cv2.imshow('crop.jpg', np.transpose(patch_crop[i], (1, 2, 0)).astype(np.float32) / 255)
                 # cv2.waitKey(0)
 
             search = patch_crop - config.net_average_image
             response = net(torch.Tensor(search).cuda()).cpu()
-            response_cpu = response.data.cpu().numpy()
-            cv2.imwrite('response_map.jpg', response_cpu[0,0,:])
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
             peak = peak.data.numpy() * config.scale_factor
             best_scale = np.argmax(peak)
@@ -131,7 +125,7 @@ if __name__ == '__main__':
                 c_max = c_max - config.net_input_size[1]
             window_sz = target_sz * (config.scale_factor[best_scale] * (1 + config.padding))
 
-            target_pos = target_pos + np.array([r_max, c_max]) * window_sz / config.net_input_size
+            target_pos = target_pos + np.array([c_max, r_max]) * window_sz / config.net_input_size
             target_sz = np.minimum(np.maximum(window_sz / (1 + config.padding), min_sz), max_sz)
 
             # model update
@@ -139,14 +133,14 @@ if __name__ == '__main__':
             bbox = cxy_wh_2_bbox(target_pos, window_sz)
             patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
             target = patch - config.net_average_image
-            net.update(torch.Tensor(np.expand_dims(target, axis=0)), lr=config.interp_factor)
+            net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda(), lr=config.interp_factor)
 
             res.append(cxy_wh_2_rect1(target_pos, target_sz))  # 1-index
 
             if visualization:
                 im_show = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
-                cv2.rectangle(im_show, (int(target_pos[1] - target_sz[1] / 2), int(target_pos[0] - target_sz[0] / 2)),
-                              (int(target_pos[1] + target_sz[1] / 2), int(target_pos[0] + target_sz[0] / 2)),
+                cv2.rectangle(im_show, (int(target_pos[0] - target_sz[0] / 2), int(target_pos[1] - target_sz[1] / 2)),
+                              (int(target_pos[0] + target_sz[0] / 2), int(target_pos[1] + target_sz[1] / 2)),
                               (0, 255, 0), 3)
                 cv2.putText(im_show, str(f), (40, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
                 cv2.imshow(video, im_show)
