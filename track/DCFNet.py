@@ -30,7 +30,7 @@ class TrackerConfig(object):
     scale_penalties = scale_penalty ** (np.abs((np.arange(num_scale) - num_scale / 2)))
 
     net_input_size = [crop_sz, crop_sz]
-    net_average_image = np.array([104, 117, 123]).reshape(-1, 1, 1).astype(np.float32)
+    net_average_image = np.array([123, 117, 104]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
     # cv2.imshow('gaussian', y)
@@ -41,10 +41,11 @@ class TrackerConfig(object):
     yf_imag = torch.Tensor(np.imag(yf_))
     yf[0, 0, :, :, 0] = yf_real
     yf[0, 0, :, :, 1] = yf_imag
+    yf = yf.cuda()
     # y = torch.irfft(yf, 2, onesided=False)
     # cv2.imshow('gaussian', y[0,0].data.cpu().numpy())
     # cv2.waitKey(0)
-    cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz)))
+    cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
     # cv2.imshow('cos window', cos_window.data.cpu().numpy())
     # cv2.waitKey(0)
 
@@ -58,17 +59,20 @@ def DCFNet_track(state, im):
 
 
 if __name__ == '__main__':
+    raw_data_path = '/media/sensetime/memo/OTB2015'
+    if not isdir(raw_data_path):
+        raw_data_path = '/data1/qwang/OTB100'
     dataset = 'OTB2015'
     base_path = join('dataset', dataset)
     json_path = join('dataset', dataset + '.json')
     annos = json.load(open(json_path, 'r'))
     videos = sorted(annos.keys())
     use_gpu = True
-    visualization = True
+    visualization = False
     for video_id, video in enumerate(videos[30:]):  # run without resetting
         video_path_name = annos[video]['name']
         init_rect = np.array(annos[video]['init_rect']).astype(np.float)
-        image_files = [join('/media/sensetime/memo/OTB2015', video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
+        image_files = [join(raw_data_path, video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
         n_images = len(image_files)
 
         target_pos, target_sz = rect1_2_cxy_wh(init_rect)
@@ -84,6 +88,7 @@ if __name__ == '__main__':
         net = DCFNet(config)
         net.load_param(config.feature_path)
         net.eval()
+        net.cuda()
         min_sz = np.maximum(config.min_scale_factor * target_sz, 4)
         [im_h, im_w, _] = im.shape
         max_sz = np.minimum(im.shape[:2], config.max_scale_factor * target_sz)
@@ -91,16 +96,14 @@ if __name__ == '__main__':
         window_sz = target_sz * (1 + config.padding)
         bbox = cxy_wh_2_bbox(target_pos, window_sz)
         patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
-
-        # cv2.imshow('crop.jpg', np.transpose(patch, (1, 2, 0)).astype(np.float32)/255)
-        # cv2.waitKey(0)
+        # cv2.imwrite('crop.jpg', np.transpose(patch[::-1,:,:], (1, 2, 0)))
 
         target = patch - config.net_average_image
-        net.update(torch.Tensor(np.expand_dims(target, axis=0)))
+        net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda())
 
         res = [cxy_wh_2_rect1(target_pos, target_sz)]  # save in .txt
         tic = time.time()
-        patch_crop = np.zeros((3, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)
+        patch_crop = np.zeros((config.num_scale, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)
         for f in range(1, n_images):
             im = cv2.imread(image_files[0])
             im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
@@ -109,13 +112,14 @@ if __name__ == '__main__':
                 window_sz = target_sz * (config.scale_factor[i] * (1 + config.padding))
                 bbox = cxy_wh_2_bbox(target_pos, window_sz)
                 patch_crop[i,:] = resample(im, bbox, config.net_input_size, [0, 0, 0])
+                # cv2.imwrite('crop2.jpg', np.transpose(patch_crop[0,::-1,:,:], (1, 2, 0)))
                 # cv2.imshow('crop.jpg', np.transpose(patch_crop[i], (1, 2, 0)).astype(np.float32) / 255)
                 # cv2.waitKey(0)
 
             search = patch_crop - config.net_average_image
-            response = net(torch.Tensor(search))
+            response = net(torch.Tensor(search).cuda()).cpu()
             response_cpu = response.data.cpu().numpy()
-            # cv2.imwrite('response_map.jpg', response_cpu[0,0,:])
+            cv2.imwrite('response_map.jpg', response_cpu[0,0,:])
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
             peak = peak.data.numpy() * config.scale_factor
             best_scale = np.argmax(peak)

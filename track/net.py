@@ -10,14 +10,14 @@ def conj(input):
 
 
 def complex_mul(x, z):
-    out = x
+    out = x.clone()
     out[..., 0] = x[..., 0] * z[..., 0] - x[..., 1] * z[..., 1]
     out[..., 1] = x[..., 0] * z[..., 1] + x[..., 1] * z[..., 0]
     return out
 
 
 def complex_mulconj(x, z):
-    out = x
+    out = x.clone()
     out[..., 0] = x[..., 0] * z[..., 0] + x[..., 1] * z[..., 1]
     out[..., 1] = x[..., 1] * z[..., 0] - x[..., 0] * z[..., 1]
     return out
