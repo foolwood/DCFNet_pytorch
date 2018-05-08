@@ -43,12 +43,66 @@ class TrackerConfig(object):
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
 
 
-def DCFNet_init(im, target_pos, target_sz, use_gpu=True):
-    pass
+class DCFNetTraker(object):
+    def __init__(self, im, init_rect, config=TrackerConfig(), gpu=True):
+        self.gpu = gpu
+        self.config = config
+        self.net = DCFNet(config)
+        self.net.load_param(config.feature_path)
+        self.net.eval()
+        if gpu:
+            self.net.cuda()
 
+        # confine results
+        target_pos, target_sz = rect1_2_cxy_wh(init_rect)
+        self.min_sz = np.maximum(config.min_scale_factor * target_sz, 4)
+        self.max_sz = np.minimum(im.shape[:2], config.max_scale_factor * target_sz)
 
-def DCFNet_track(state, im):
-    pass
+        # crop template
+        window_sz = target_sz * (1 + config.padding)
+        bbox = cxy_wh_2_bbox(target_pos, window_sz)
+        patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
+        # cv2.imwrite('crop.jpg', np.transpose(patch[::-1,:,:], (1, 2, 0)))
+
+        target = patch - config.net_average_image
+        self.net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda())
+        self.target_pos, self.target_sz = target_pos, target_sz
+        self.patch_crop = np.zeros((config.num_scale, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)  # buff
+
+    def track(self, im):
+        for i in range(self.config.num_scale):  # crop multi-scale search region
+            window_sz = self.target_sz * (self.config.scale_factor[i] * (1 + self.config.padding))
+            bbox = cxy_wh_2_bbox(self.target_pos, window_sz)
+            self.patch_crop[i, :] = resample(im, bbox, self.config.net_input_size, [0, 0, 0])
+
+        search = self.patch_crop - self.config.net_average_image
+
+        if self.gpu:
+            response = self.net(torch.Tensor(search).cuda()).cpu()
+        else:
+            response = self.net(torch.Tensor(search))
+        peak, idx = torch.max(response.view(self.config.num_scale, -1), 1)
+        peak = peak.data.numpy() * self.config.scale_factor
+        best_scale = np.argmax(peak)
+        r_max, c_max = np.unravel_index(idx[best_scale], self.config.net_input_size)
+
+        if r_max > self.config.net_input_size[0] / 2:
+            r_max = r_max - self.config.net_input_size[0]
+        if c_max > self.config.net_input_size[1] / 2:
+            c_max = c_max - self.config.net_input_size[1]
+        window_sz = self.target_sz * (self.config.scale_factor[best_scale] * (1 + self.config.padding))
+
+        self.target_pos = self.target_pos + np.array([c_max, r_max]) * window_sz / self.config.net_input_size
+        self.target_sz = np.minimum(np.maximum(window_sz / (1 + self.config.padding), self.min_sz), self.max_sz)
+
+        # model update
+        window_sz = self.target_sz * (1 + self.config.padding)
+        bbox = cxy_wh_2_bbox(self.target_pos, window_sz)
+        patch = resample(im, bbox, self.config.net_input_size, [0, 0, 0])
+        target = patch - self.config.net_average_image
+        self.net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda(), lr=self.config.interp_factor)
+
+        return cxy_wh_2_rect1(self.target_pos, self.target_sz)  # 1-index
 
 
 if __name__ == '__main__':
