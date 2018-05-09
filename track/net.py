@@ -10,17 +10,15 @@ def conj(input):
 
 
 def complex_mul(x, z):
-    out = x.clone()
-    out[..., 0] = x[..., 0] * z[..., 0] - x[..., 1] * z[..., 1]
-    out[..., 1] = x[..., 0] * z[..., 1] + x[..., 1] * z[..., 0]
-    return out
+    out_real = x[..., 0] * z[..., 0] - x[..., 1] * z[..., 1]
+    out_imag = x[..., 0] * z[..., 1] + x[..., 1] * z[..., 0]
+    return torch.stack((out_real, out_imag), -1)
 
 
 def complex_mulconj(x, z):
-    out = x.clone()
-    out[..., 0] = x[..., 0] * z[..., 0] + x[..., 1] * z[..., 1]
-    out[..., 1] = x[..., 1] * z[..., 0] - x[..., 0] * z[..., 1]
-    return out
+    out_real = x[..., 0] * z[..., 0] + x[..., 1] * z[..., 1]
+    out_imag = x[..., 1] * z[..., 0] - x[..., 0] * z[..., 1]
+    return torch.stack((out_real, out_imag), -1)
 
 
 class DCFNetFeature(nn.Module):

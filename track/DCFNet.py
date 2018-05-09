@@ -167,9 +167,9 @@ if __name__ == '__main__':
                 # cv2.waitKey(0)
 
             search = patch_crop - config.net_average_image
-            response = net(torch.Tensor(search).cuda()).cpu()
+            response = net(torch.Tensor(search).cuda())
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
-            peak = peak.data.numpy() * config.scale_factor
+            peak = peak.cpu().data.numpy() * config.scale_penalties
             best_scale = np.argmax(peak)
             r_max, c_max = np.unravel_index(idx[best_scale], config.net_input_size)
 

@@ -44,8 +44,8 @@ void resize(uint8* image, shape s, uint8* data, int width, int height, Rect box,
         uint8 *g = data_g + dst_h * width;
         uint8 *r = data_r + dst_h * width;
         for (int dst_w = 0; dst_w < width; ++ dst_w) {
-            float src_h = dst_h / scale_y + box.y1;
-            float src_w = dst_w / scale_x + box.x1;
+            float src_h = (dst_h + 0.5) / scale_y - 0.5 + box.y1;
+            float src_w = (dst_w + 0.5) / scale_x - 0.5 + box.x1;
 
             int h1 = src_h;
             int h2 = h1 + 1;
