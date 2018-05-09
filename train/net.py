@@ -24,9 +24,9 @@ class DCFNetFeature(nn.Module):
     def __init__(self):
         super(DCFNetFeature, self).__init__()
         self.feature = nn.Sequential(
-            nn.Conv2d(3, 32, 3, padding=1),
+            nn.Conv2d(3, 32, 3),
             nn.ReLU(inplace=True),
-            nn.Conv2d(32, 32, 3, padding=1),
+            nn.Conv2d(32, 32, 3),
             nn.LocalResponseNorm(size=5, alpha=0.0001, beta=0.75, k=1),
         )
 
@@ -44,13 +44,13 @@ class DCFNet(nn.Module):
         self.numel_zf = 1
 
     def forward(self, z, x):
-        z = self.feature(z) * self.config.cos_window
+        z = self.feature(z)
         zf = torch.rfft(z, signal_ndim=2, normalized=False, onesided=False)
-        self.numel_zf = float(np.prod(z.shape).astype(np.float32))
+        self.numel_zf = float(np.prod(z[0].shape).astype(np.float32))
         kf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True) / self.numel_zf
         alphaf = self.config.yf / (kf + self.config.lambda0)
 
-        x = self.feature(x) * self.config.cos_window
+        x = self.feature(x)
         xf = torch.rfft(x, signal_ndim=2, normalized=False, onesided=False)
         kzf = torch.sum(complex_mulconj(xf, zf), dim=1, keepdim=True) / self.numel_zf
         response = torch.irfft(complex_mul(kzf, alphaf), signal_ndim=2, onesided=False)
