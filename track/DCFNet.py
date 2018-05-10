@@ -9,6 +9,7 @@ import time as time
 from util import cxy_wh_2_rect1, rect1_2_cxy_wh, gaussian_shaped_labels, cxy_wh_2_bbox
 from net import DCFNet
 from sample import resample
+from eval_otb import eval_auc
 
 
 class TrackerConfig(object):
@@ -20,9 +21,9 @@ class TrackerConfig(object):
     lambda0 = 1e-4
     padding = 2.0
     output_sigma_factor = 0.1
-    interp_factor = 0.011
+    interp_factor = 0.01
     num_scale = 3
-    scale_step = 1.015
+    scale_step = 1.0275
     scale_factor = scale_step ** (np.arange(num_scale) - num_scale / 2)
     min_scale_factor = 0.2
     max_scale_factor = 5
@@ -201,7 +202,7 @@ if __name__ == '__main__':
                 cv2.waitKey(1)
 
         toc = time.time() - tic
-        print('{:3d} Video: {:12s} Time: {:3.1f}s\tSpeed: {:3.2f}fps'.format(video_id, video, toc, n_images / toc))
+        print('{:3d} Video: {:12s} Time: {:3.1f}s\tSpeed: {:3.1f}fps'.format(video_id, video, toc, n_images / toc))
 
         # save result
         test_path = './result/OTB2015/DCFNet_test/'
@@ -210,3 +211,5 @@ if __name__ == '__main__':
         with open(result_path, 'w') as f:
             for x in res:
                 f.write(','.join(['{:.2f}'.format(i) for i in x]) + '\n')
+
+    eval_auc('OTB2015', 'DCFNet_test', 0, 1)

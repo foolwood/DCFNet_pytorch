@@ -6,10 +6,10 @@ import numpy as np
 
 
 class VID(data.Dataset):
-    def __init__(self, file='dataset/dataset.json', root='/data1/qwang/DCFNet_crop_125_1.5', trian=True):
+    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_1.5', train=True):
         self.imdb = json.load(open(file, 'r'))
         self.root = root
-        self.train = trian
+        self.train = train
 
     def __getitem__(self, item):
         if self.train:

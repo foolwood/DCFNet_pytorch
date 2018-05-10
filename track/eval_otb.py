@@ -89,10 +89,10 @@ def eval_auc(dataset='OTB2015', tracker_reg='S*', start=0, end=1e6):
 
     n_seq = len(seqs)
     thresholds_overlap = np.arange(0, 1.05, 0.05)
-    thresholds_error = np.arange(0, 51, 1)
+    # thresholds_error = np.arange(0, 51, 1)
 
     success_overlap = np.zeros((n_seq, len(trackers), len(thresholds_overlap)))
-    success_error = np.zeros((n_seq, len(trackers), len(thresholds_error)))
+    # success_error = np.zeros((n_seq, len(trackers), len(thresholds_error)))
     for i in range(n_seq):
         seq = seqs[i]
         gt_rect = np.array(annos[seq]['gt_rect']).astype(np.float)

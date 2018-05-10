@@ -1,5 +1,7 @@
 import argparse
 import shutil
+from os.path import join, isdir, isfile
+from os import makedirs
 
 from dataset import VID
 from net import DCFNet
@@ -12,7 +14,9 @@ import time
 
 
 parser = argparse.ArgumentParser(description='Training DCFNet in Pytorch 0.4.0')
-parser.add_argument('--epochs', default=90, type=int, metavar='N',
+parser.add_argument('--input_sz', dest='input_sz', default=125, type=int, help='crop input size')
+parser.add_argument('--padding', dest='padding', default=1.5, type=float, help='crop padding size')
+parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -22,12 +26,14 @@ parser.add_argument('-j', '--workers', default=8, type=int, metavar='N',
                     help='number of data loading workers (default: 8)')
 parser.add_argument('-b', '--batch-size', default=32, type=int,
                     metavar='N', help='mini-batch size (default: 32)')
-parser.add_argument('--lr', '--learning-rate', default=0.1, type=float,
+parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
 parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
                     metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
+parser.add_argument('--save', '-s', default='./work', type=str, help='directory for saving')
 
 args = parser.parse_args()
 
@@ -62,7 +68,7 @@ class TrackerConfig(object):
 
 
 config = TrackerConfig()
-target = torch.Tensor(config.y).cuda().unsqueeze(0).unsqueeze(0).repeat(args.batch_size, 1, 1, 1)
+target = torch.Tensor(config.y).cuda().unsqueeze(0).unsqueeze(0).repeat(args.batch_size, 1, 1, 1)  # for training
 
 model = DCFNet(config=config)
 model.cuda()
@@ -74,10 +80,34 @@ optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
                             weight_decay=args.weight_decay)
 
+# optionally resume from a checkpoint
+if args.resume:
+    if isfile(args.resume):
+        print("=> loading checkpoint '{}'".format(args.resume))
+        checkpoint = torch.load(args.resume)
+        args.start_epoch = checkpoint['epoch']
+        best_loss = checkpoint['best_loss']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        print("=> loaded checkpoint '{}' (epoch {})"
+              .format(args.resume, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(args.resume))
+
 cudnn.benchmark = True
 
-train_dataset = VID(trian=True)
-val_dataset = VID(trian=False)
+# training data
+crop_base_path = join('dataset', 'crop_{:d}_{:1.1f}'.format(args.input_sz, args.padding))
+if not isdir(crop_base_path):
+    print('please run gen_training_data.py --output_size {:d} --padding {:.1f}!'.format(args.input_sz, args.padding))
+    exit()
+
+save_path = join(args.save, 'crop_{:d}_{:1.1f}'.format(args.input_sz, args.padding))
+if not isdir(save_path):
+    makedirs(save_path)
+
+train_dataset = VID(root=crop_base_path, train=True)
+val_dataset = VID(root=crop_base_path, train=False)
 
 train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size, shuffle=True,
@@ -90,7 +120,7 @@ val_loader = torch.utils.data.DataLoader(
 
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
-    lr = args.lr * (0.1 ** (epoch // 30))
+    lr = np.logspace(-2, -5, num=args.epochs)[epoch]
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -113,10 +143,10 @@ class AverageMeter(object):
         self.avg = self.sum / self.count
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, is_best, filename=join(save_path, 'checkpoint.pth.tar')):
     torch.save(state, filename)
     if is_best:
-        shutil.copyfile(filename, 'model_best.pth.tar')
+        shutil.copyfile(filename, join(save_path, 'model_best.pth.tar'))
 
 
 def train(train_loader, model, criterion, optimizer, epoch):
@@ -170,7 +200,6 @@ def validate(val_loader, model, criterion):
     with torch.no_grad():
         end = time.time()
         for i, (template, search) in enumerate(val_loader):
-            target = target.cuda(non_blocking=True)
 
             # compute output
             template = template.cuda(non_blocking=True)
@@ -207,12 +236,12 @@ for epoch in range(args.start_epoch, args.epochs):
     # evaluate on validation set
     loss = validate(val_loader, model, criterion)
 
-    # remember best prec@1 and save checkpoint
-    is_best = loss > best_loss
+    # remember best loss and save checkpoint
+    is_best = loss < best_loss
     best_loss = min(best_loss, loss)
     save_checkpoint({
         'epoch': epoch + 1,
         'state_dict': model.state_dict(),
         'best_loss': best_loss,
-        'optimizer' : optimizer.state_dict(),
+        'optimizer': optimizer.state_dict(),
     }, is_best)

@@ -4,11 +4,6 @@ import numpy as np
 import cv2
 
 
-def conj(input):
-    input[:,1] *= -1
-    return input
-
-
 def complex_mul(x, z):
     out_real = x[..., 0] * z[..., 0] - x[..., 1] * z[..., 1]
     out_imag = x[..., 0] * z[..., 1] + x[..., 1] * z[..., 0]
