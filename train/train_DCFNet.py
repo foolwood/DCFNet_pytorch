@@ -37,6 +37,8 @@ parser.add_argument('--save', '-s', default='./work', type=str, help='directory 
 
 args = parser.parse_args()
 
+best_loss = 0
+
 
 def gaussian_shaped_labels(sigma, sz):
     x, y = np.meshgrid(np.arange(1, sz[0]+1) - np.floor(float(sz[0]) / 2), np.arange(1, sz[1]+1) - np.floor(float(sz[1]) / 2))
@@ -72,7 +74,9 @@ target = torch.Tensor(config.y).cuda().unsqueeze(0).unsqueeze(0).repeat(args.bat
 
 model = DCFNet(config=config)
 model.cuda()
-model = torch.nn.DataParallel(model)
+gpu_num = torch.cuda.device_count()
+print('GPU NUM: {:2d}'.format(gpu_num))
+model = torch.nn.DataParallel(model, list(range(gpu_num))).cuda()
 
 criterion = nn.MSELoss(size_average=False).cuda()
 
@@ -110,12 +114,12 @@ train_dataset = VID(root=crop_base_path, train=True)
 val_dataset = VID(root=crop_base_path, train=False)
 
 train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=True)
+        train_dataset, batch_size=args.batch_size*gpu_num, shuffle=True,
+        num_workers=args.workers, pin_memory=True, drop_last=True)
 
 val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        val_dataset, batch_size=args.batch_size*gpu_num, shuffle=False,
+        num_workers=args.workers, pin_memory=True, drop_last=True)
 
 
 def adjust_learning_rate(optimizer, epoch):
@@ -210,7 +214,7 @@ def validate(val_loader, model, criterion):
             loss = criterion(output, target)
 
             # measure accuracy and record loss
-            losses.update(loss.item(), input.size(0))
+            losses.update(loss.item(), template.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)

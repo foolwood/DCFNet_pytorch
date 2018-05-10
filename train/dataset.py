@@ -37,8 +37,12 @@ class VID(data.Dataset):
 
 
 if __name__ == '__main__':
-    data = VID(trian=True)
+    import matplotlib.pyplot as plt
+    data = VID(train=True)
     n = len(data)
     for i in range(n):
         z, x = data[i]
-        pass
+        z, x = np.transpose(z, (1, 2, 0)).astype(np.uint8), np.transpose(x, (1, 2, 0)).astype(np.uint8)
+        zx = np.concatenate((z, x), axis=1)
+        plt.imshow(cv2.cvtColor(zx, cv2.COLOR_BGR2RGB))
+        plt.show()
