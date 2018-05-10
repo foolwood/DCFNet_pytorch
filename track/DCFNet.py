@@ -83,7 +83,7 @@ class DCFNetTraker(object):
         else:
             response = self.net(torch.Tensor(search))
         peak, idx = torch.max(response.view(self.config.num_scale, -1), 1)
-        peak = peak.data.numpy() * self.config.scale_factor
+        peak = peak.data.cpu().numpy() * self.config.scale_penalties
         best_scale = np.argmax(peak)
         r_max, c_max = np.unravel_index(idx[best_scale], self.config.net_input_size)
 
@@ -108,9 +108,6 @@ class DCFNetTraker(object):
 
 if __name__ == '__main__':
     # base dataset path and setting
-    raw_data_path = '/media/sensetime/memo/OTB2015'
-    if not isdir(raw_data_path):
-        raw_data_path = '/data1/qwang/OTB100'
     dataset = 'OTB2015'
     base_path = join('dataset', dataset)
     json_path = join('dataset', dataset + '.json')
@@ -131,7 +128,7 @@ if __name__ == '__main__':
     for video_id, video in enumerate(videos):  # run without resetting
         video_path_name = annos[video]['name']
         init_rect = np.array(annos[video]['init_rect']).astype(np.float)
-        image_files = [join(raw_data_path, video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
+        image_files = [join(base_path, video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
         n_images = len(image_files)
 
         target_pos, target_sz = rect1_2_cxy_wh(init_rect)  # OTB label is 1-indexed
@@ -168,9 +165,9 @@ if __name__ == '__main__':
                 # cv2.waitKey(0)
 
             search = patch_crop - config.net_average_image
-            response = net(torch.Tensor(search).cuda())
+            response = net(torch.Tensor(search).cuda()).cpu()
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
-            peak = peak.cpu().data.numpy() * config.scale_penalties
+            peak = peak.data.numpy() * config.scale_penalties
             best_scale = np.argmax(peak)
             r_max, c_max = np.unravel_index(idx[best_scale], config.net_input_size)
 
