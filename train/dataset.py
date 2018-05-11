@@ -6,11 +6,12 @@ import numpy as np
 
 
 class VID(data.Dataset):
-    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_1.5', train=True):
+    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_1.5', range=100, train=True):
         self.imdb = json.load(open(file, 'r'))
         self.root = root
+        self.range = range
         self.train = train
-        self.mean = np.expand_dims(np.expand_dims(np.array([108.8672, 120.426048, 119.035392]), axis=1), axis=1).astype(np.float32)
+        self.mean = np.expand_dims(np.expand_dims(np.array([109, 120, 119]), axis=1), axis=1).astype(np.float32)
 
     def __getitem__(self, item):
         if self.train:
@@ -18,9 +19,10 @@ class VID(data.Dataset):
         else:
             target_id = self.imdb['val_set'][item]
 
-        range_down = self.imdb['down_index'][target_id]
+        # range_down = self.imdb['down_index'][target_id]
         range_up = self.imdb['up_index'][target_id]
-        search_id = np.random.randint(-min(range_down,100), min(range_up, 100)) + target_id
+        # search_id = np.random.randint(-min(range_down, self.range), min(range_up, self.range)) + target_id
+        search_id = np.random.randint(1, min(range_up, self.range)) + target_id
 
         target = cv2.imread(join(self.root, '{:08d}.jpg'.format(target_id)))
         search = cv2.imread(join(self.root, '{:08d}.jpg'.format(search_id)))

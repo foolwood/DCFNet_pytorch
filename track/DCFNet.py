@@ -34,14 +34,7 @@ class TrackerConfig(object):
     net_average_image = np.array([104, 117, 123]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
-    # yf_ = np.fft.fft2(y)
-    # yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
-    # yf_real = torch.Tensor(np.real(yf_))
-    # yf_imag = torch.Tensor(np.imag(yf_))
-    # yf[0, 0, :, :, 0] = yf_real
-    # yf[0, 0, :, :, 1] = yf_imag
-    # yf = yf.cuda()
-    yf = torch.rfft(torch.Tensor(y).unsqueeze(dim=0).unsqueeze(dim=0).cuda(), signal_ndim=2, normalized=False)
+    yf = torch.rfft(torch.Tensor(y).view(1, 1, crop_sz, crop_sz).cuda(), signal_ndim=2, normalized=False)
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
 
 
@@ -125,12 +118,16 @@ if __name__ == '__main__':
     net.eval()
     net.cuda()
 
+    speed = []
+
     # loop videos
     for video_id, video in enumerate(videos):  # run without resetting
         video_path_name = annos[video]['name']
         init_rect = np.array(annos[video]['init_rect']).astype(np.float)
         image_files = [join(base_path, video_path_name, 'img', im_f) for im_f in annos[video]['image_files']]
         n_images = len(image_files)
+
+        tic = time.time()  # time start
 
         target_pos, target_sz = rect1_2_cxy_wh(init_rect)  # OTB label is 1-indexed
 
@@ -150,7 +147,6 @@ if __name__ == '__main__':
         net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda())
 
         res = [cxy_wh_2_rect1(target_pos, target_sz)]  # save in .txt
-        tic = time.time()
         patch_crop = np.zeros((config.num_scale, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)
         for f in range(1, n_images):  # track
             im = cv2.imread(image_files[f])
@@ -198,7 +194,9 @@ if __name__ == '__main__':
                 cv2.waitKey(1)
 
         toc = time.time() - tic
-        print('{:3d} Video: {:12s} Time: {:3.1f}s\tSpeed: {:3.1f}fps'.format(video_id, video, toc, n_images / toc))
+        fps = n_images / toc
+        speed.append(fps)
+        print('{:3d} Video: {:12s} Time: {:3.1f}s\tSpeed: {:3.1f}fps'.format(video_id, video, toc, fps))
 
         # save result
         test_path = './result/OTB2015/DCFNet_test/'
@@ -207,5 +205,7 @@ if __name__ == '__main__':
         with open(result_path, 'w') as f:
             for x in res:
                 f.write(','.join(['{:.2f}'.format(i) for i in x]) + '\n')
+
+    print('***Total Mean Speed: {:3.1f} (FPS)***'.format(np.mean(speed)))
 
     eval_auc('OTB2015', 'DCFNet_test', 0, 1)

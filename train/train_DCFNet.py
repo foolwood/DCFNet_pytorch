@@ -61,13 +61,7 @@ class TrackerConfig(object):
     net_input_size = [crop_sz, crop_sz]
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
-    yf_ = np.fft.fft2(y)
-    yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
-    yf_real = torch.Tensor(np.real(yf_))
-    yf_imag = torch.Tensor(np.imag(yf_))
-    yf[0, 0, :, :, 0] = yf_real
-    yf[0, 0, :, :, 1] = yf_imag
-    yf = yf.cuda()
+    yf = torch.rfft(torch.Tensor(y).view(1, 1, crop_sz, crop_sz).cuda(), signal_ndim=2, normalized=False)
 
 
 config = TrackerConfig()
@@ -213,10 +207,10 @@ def validate(val_loader, model, criterion):
 
             # compute output
             output = model(template, search)
-            loss = criterion(output, target)
+            loss = criterion(output, target)/template.size(0)
 
             # measure accuracy and record loss
-            losses.update(loss.item(), template.size(0))
+            losses.update(loss.item())
 
             # measure elapsed time
             batch_time.update(time.time() - end)

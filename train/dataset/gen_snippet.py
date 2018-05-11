@@ -51,25 +51,26 @@ for subset in vid:
                 id_frames[trackid].append(f)
 
         for trackid_select in id_set:
-            frame_ids = id_frames[trackid_select]
-            snippet = dict()
-            snippet['base_path'] = video['base_path']
-            snippet['frame'] = []
-            for f in frame_ids:
-                frame = frames[f]
-                fram = dict()
-                fram['frame_sz'] = frame['frame_sz']
-                fram['img_path'] = frame['img_path']
-                objs = frame['objs']
-                for obj in objs:
-                    trackid = obj['trackid']
-                    if trackid == trackid_select:
-                        ob = obj
-                        continue
-                fram['objs'] = ob
-                snippet['frame'].append(fram)
-            snippets.append(snippet)
-            n_snippets += 1
+            frame_ids = sorted(id_frames[trackid_select])
+            sequences = np.split(frame_ids, np.array(np.where(np.diff(frame_ids) > 1)[0]) + 1)
+            sequences = [s for s in sequences if len(s) > 1]  # remove isolated sequence.
+            for seq in sequences:
+                snippet = dict()
+                snippet['base_path'] = video['base_path']
+                snippet['frame'] = []
+                for frame_id in seq:
+                    frame = frames[frame_id]
+                    f = dict()
+                    f['frame_sz'] = frame['frame_sz']
+                    f['img_path'] = frame['img_path']
+                    for obj in frame['objs']:
+                        if obj['trackid'] == trackid_select:
+                            ob = obj
+                            continue
+                    f['obj'] = ob
+                    snippet['frame'].append(f)
+                snippets.append(snippet)
+                n_snippets += 1
         print('video: {:d} snippets_num: {:d}'.format(n_videos, n_snippets))
 
 print('save json (snippets), please wait 1 min~')

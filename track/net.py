@@ -37,12 +37,11 @@ class DCFNet(nn.Module):
         self.model_alphaf = []
         self.model_xf = []
         self.config = config
-        self.numel_zf = 1
 
     def forward(self, x):
         x = self.feature(x) * self.config.cos_window
         xf = torch.rfft(x, signal_ndim=2)
-        kxzf = torch.sum(complex_mulconj(xf, self.model_zf), dim=1, keepdim=True) / self.numel_zf
+        kxzf = torch.sum(complex_mulconj(xf, self.model_zf), dim=1, keepdim=True)
         response = torch.irfft(complex_mul(kxzf, self.model_alphaf), signal_ndim=2)
         # r_max = torch.max(response)
         # cv2.imshow('response', response[0, 0].data.cpu().numpy())
@@ -52,8 +51,7 @@ class DCFNet(nn.Module):
     def update(self, z, lr=1.):
         z = self.feature(z) * self.config.cos_window
         zf = torch.rfft(z, signal_ndim=2)
-        self.numel_zf = float(np.prod(z.shape).astype(np.float32))
-        kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True) / self.numel_zf
+        kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True)
         alphaf = self.config.yf / (kzzf + self.config.lambda0)
         if lr > 0.99:
             self.model_alphaf = alphaf
