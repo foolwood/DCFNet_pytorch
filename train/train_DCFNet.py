@@ -15,7 +15,7 @@ import time
 
 parser = argparse.ArgumentParser(description='Training DCFNet in Pytorch 0.4.0')
 parser.add_argument('--input_sz', dest='input_sz', default=125, type=int, help='crop input size')
-parser.add_argument('--padding', dest='padding', default=1.5, type=float, help='crop padding size')
+parser.add_argument('--padding', dest='padding', default=2.0, type=float, help='crop padding size')
 parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
@@ -30,14 +30,15 @@ parser.add_argument('--lr', '--learning-rate', default=0.01, type=float,
                     metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M',
                     help='momentum')
-parser.add_argument('--weight-decay', '--wd', default=1e-4, type=float,
-                    metavar='W', help='weight decay (default: 1e-4)')
+parser.add_argument('--weight-decay', '--wd', default=5e-5, type=float,
+                    metavar='W', help='weight decay (default: 5e-5)')
 parser.add_argument('--resume', default='', type=str, metavar='PATH', help='path to latest checkpoint (default: none)')
 parser.add_argument('--save', '-s', default='./work', type=str, help='directory for saving')
 
 args = parser.parse_args()
 
-best_loss = 0
+print args
+best_loss = 1e6
 
 
 def gaussian_shaped_labels(sigma, sz):
@@ -76,7 +77,8 @@ model = DCFNet(config=config)
 model.cuda()
 gpu_num = torch.cuda.device_count()
 print('GPU NUM: {:2d}'.format(gpu_num))
-model = torch.nn.DataParallel(model, list(range(gpu_num))).cuda()
+if gpu_num > 1:
+    model = torch.nn.DataParallel(model, list(range(gpu_num))).cuda()
 
 criterion = nn.MSELoss(size_average=False).cuda()
 
@@ -171,10 +173,10 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # compute output
         output = model(template, search)
-        loss = criterion(output, target)
+        loss = criterion(output, target)/template.size(0)
 
         # measure accuracy and record loss
-        losses.update(loss.item(), template.size(0))
+        losses.update(loss.item())
 
         # compute gradient and do SGD step
         optimizer.zero_grad()

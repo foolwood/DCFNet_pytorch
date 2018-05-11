@@ -10,6 +10,7 @@ class VID(data.Dataset):
         self.imdb = json.load(open(file, 'r'))
         self.root = root
         self.train = train
+        self.mean = np.expand_dims(np.expand_dims(np.array([108.8672, 120.426048, 119.035392]), axis=1), axis=1).astype(np.float32)
 
     def __getitem__(self, item):
         if self.train:
@@ -19,13 +20,13 @@ class VID(data.Dataset):
 
         range_down = self.imdb['down_index'][target_id]
         range_up = self.imdb['up_index'][target_id]
-        search_id = np.random.randint(-range_down, range_up) + target_id
+        search_id = np.random.randint(-min(range_down,100), min(range_up, 100)) + target_id
 
         target = cv2.imread(join(self.root, '{:08d}.jpg'.format(target_id)))
         search = cv2.imread(join(self.root, '{:08d}.jpg'.format(search_id)))
 
-        target = np.transpose(target, (2, 0, 1)).astype(np.float32)
-        search = np.transpose(search, (2, 0, 1)).astype(np.float32)
+        target = np.transpose(target, (2, 0, 1)).astype(np.float32) - self.mean
+        search = np.transpose(search, (2, 0, 1)).astype(np.float32) - self.mean
 
         return target, search
 

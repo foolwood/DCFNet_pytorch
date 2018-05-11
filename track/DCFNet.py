@@ -31,16 +31,17 @@ class TrackerConfig(object):
     scale_penalties = scale_penalty ** (np.abs((np.arange(num_scale) - num_scale / 2)))
 
     net_input_size = [crop_sz, crop_sz]
-    net_average_image = np.array([123, 117, 104]).reshape(-1, 1, 1).astype(np.float32)
+    net_average_image = np.array([104, 117, 123]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
-    yf_ = np.fft.fft2(y)
-    yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
-    yf_real = torch.Tensor(np.real(yf_))
-    yf_imag = torch.Tensor(np.imag(yf_))
-    yf[0, 0, :, :, 0] = yf_real
-    yf[0, 0, :, :, 1] = yf_imag
-    yf = yf.cuda()
+    # yf_ = np.fft.fft2(y)
+    # yf = torch.Tensor(1, 1, crop_sz, crop_sz, 2)
+    # yf_real = torch.Tensor(np.real(yf_))
+    # yf_imag = torch.Tensor(np.imag(yf_))
+    # yf[0, 0, :, :, 0] = yf_real
+    # yf[0, 0, :, :, 1] = yf_imag
+    # yf = yf.cuda()
+    yf = torch.rfft(torch.Tensor(y).unsqueeze(dim=0).unsqueeze(dim=0).cuda(), signal_ndim=2, normalized=False)
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
 
 
@@ -134,7 +135,6 @@ if __name__ == '__main__':
         target_pos, target_sz = rect1_2_cxy_wh(init_rect)  # OTB label is 1-indexed
 
         im = cv2.imread(image_files[0])  # HxWxC
-        im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
 
         # confine results
         min_sz = np.maximum(config.min_scale_factor * target_sz, 4)
@@ -154,7 +154,6 @@ if __name__ == '__main__':
         patch_crop = np.zeros((config.num_scale, patch.shape[0], patch.shape[1], patch.shape[2]), np.float32)
         for f in range(1, n_images):  # track
             im = cv2.imread(image_files[f])
-            im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
 
             for i in range(config.num_scale):  # crop multi-scale search region
                 window_sz = target_sz * (config.scale_factor[i] * (1 + config.padding))

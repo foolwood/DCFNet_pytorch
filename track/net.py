@@ -41,9 +41,9 @@ class DCFNet(nn.Module):
 
     def forward(self, x):
         x = self.feature(x) * self.config.cos_window
-        xf = torch.rfft(x, signal_ndim=2, normalized=False, onesided=False)
-        kzf = torch.sum(complex_mulconj(xf, self.model_zf), dim=1, keepdim=True) / self.numel_zf
-        response = torch.irfft(complex_mul(kzf, self.model_alphaf), signal_ndim=2, onesided=False)
+        xf = torch.rfft(x, signal_ndim=2)
+        kxzf = torch.sum(complex_mulconj(xf, self.model_zf), dim=1, keepdim=True) / self.numel_zf
+        response = torch.irfft(complex_mul(kxzf, self.model_alphaf), signal_ndim=2)
         # r_max = torch.max(response)
         # cv2.imshow('response', response[0, 0].data.cpu().numpy())
         # cv2.waitKey(0)
@@ -51,10 +51,10 @@ class DCFNet(nn.Module):
 
     def update(self, z, lr=1.):
         z = self.feature(z) * self.config.cos_window
-        zf = torch.rfft(z, signal_ndim=2, normalized=False, onesided=False)
+        zf = torch.rfft(z, signal_ndim=2)
         self.numel_zf = float(np.prod(z.shape).astype(np.float32))
-        kf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True) / self.numel_zf
-        alphaf = self.config.yf / (kf + self.config.lambda0)
+        kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True) / self.numel_zf
+        alphaf = self.config.yf / (kzzf + self.config.lambda0)
         if lr > 0.99:
             self.model_alphaf = alphaf
             self.model_zf = zf
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     from scipy import io
     import numpy as np
     p = io.loadmat('net_param.mat')
-    x = p['res'][0][0]
+    x = p['res'][0][0][:,:,::-1].copy()
     x_out = p['res'][0][-1]
     from collections import OrderedDict
     pth_state_dict = OrderedDict()
@@ -98,6 +98,10 @@ if __name__ == '__main__':
             pth_state_dict[var_name] = torch.Tensor(np.transpose(p[key_in_model],(3,2,0,1)))
         elif 'bias' in var_name:
             pth_state_dict[var_name] = torch.Tensor(np.squeeze(p[key_in_model]))
+        if var_name == 'feature.0.weight':
+            weight = pth_state_dict[var_name].data.numpy()
+            weight = weight[:, ::-1, :, :].copy()  # cv2 bgr input
+            pth_state_dict[var_name] = torch.Tensor(weight)
 
 
     torch.save(pth_state_dict, 'param.pth')
