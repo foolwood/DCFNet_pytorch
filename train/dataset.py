@@ -6,7 +6,7 @@ import numpy as np
 
 
 class VID(data.Dataset):
-    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_1.5', range=100, train=True):
+    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_2.0', range=100, train=True):
         self.imdb = json.load(open(file, 'r'))
         self.root = root
         self.range = range
@@ -41,11 +41,22 @@ class VID(data.Dataset):
 
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
+    import matplotlib.patches as patches
     data = VID(train=True)
     n = len(data)
+    fig = plt.figure(1)
+    ax = fig.add_axes([0, 0, 1, 1])
+
     for i in range(n):
         z, x = data[i]
         z, x = np.transpose(z, (1, 2, 0)).astype(np.uint8), np.transpose(x, (1, 2, 0)).astype(np.uint8)
         zx = np.concatenate((z, x), axis=1)
-        plt.imshow(cv2.cvtColor(zx, cv2.COLOR_BGR2RGB))
-        plt.show()
+
+        ax.imshow(cv2.cvtColor(zx, cv2.COLOR_BGR2RGB))
+        p = patches.Rectangle(
+            (125/3, 125/3), 125/3, 125/3, fill=False, clip_on=False, linewidth=2, edgecolor='g')
+        ax.add_patch(p)
+        p = patches.Rectangle(
+            (125 / 3+125, 125 / 3), 125 / 3, 125 / 3, fill=False, clip_on=False, linewidth=2, edgecolor='r')
+        ax.add_patch(p)
+        plt.pause(0.5)

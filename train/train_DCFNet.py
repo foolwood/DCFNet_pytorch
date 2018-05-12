@@ -47,21 +47,21 @@ def gaussian_shaped_labels(sigma, sz):
     g = np.exp(-0.5 / (sigma ** 2) * d)
     g = np.roll(g, int(-np.floor(float(sz[0]) / 2.) + 1), axis=0)
     g = np.roll(g, int(-np.floor(float(sz[1]) / 2.) + 1), axis=1)
-    return g
+    return g.astype(np.float32)
 
 
 class TrackerConfig(object):
-    crop_sz = 121
+    crop_sz = 125
+    output_sz = 121
 
     lambda0 = 1e-4
-    padding = 1.5
+    padding = 2.0
     output_sigma_factor = 0.1
-    interp_factor = 0.011
 
-    net_input_size = [crop_sz, crop_sz]
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
-    y = gaussian_shaped_labels(output_sigma, net_input_size)
-    yf = torch.rfft(torch.Tensor(y).view(1, 1, crop_sz, crop_sz).cuda(), signal_ndim=2, normalized=False)
+    y = gaussian_shaped_labels(output_sigma, [output_sz, output_sz])
+    yf = torch.rfft(torch.Tensor(y).view(1, 1, output_sz, output_sz).cuda(), signal_ndim=2)
+    # cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()  # train without cos window
 
 
 config = TrackerConfig()
@@ -76,6 +76,7 @@ if gpu_num > 1:
 
 criterion = nn.MSELoss(size_average=False).cuda()
 
+a = model.parameters()
 optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
                             weight_decay=args.weight_decay)

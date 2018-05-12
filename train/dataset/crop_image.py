@@ -41,7 +41,6 @@ num_all_frame = 546315  # cat snippet.json | grep bbox |wc -l
 num_val = 1000
 # crop image
 imdb = dict()
-is_not_end = np.ones(num_all_frame)  # 1 for training 2 for val 3 not template
 imdb['down_index'] = np.zeros(num_all_frame, np.int)  # buff
 imdb['up_index'] = np.zeros(num_all_frame, np.int)
 
@@ -67,11 +66,10 @@ for snap in snaps:
         window_sz = target_sz * (1 + args.padding)
         crop_bbox = cxy_wh_2_bbox(target_pos, window_sz)
         crop = resample(im, crop_bbox, [args.output_size, args.output_size], avg_chans)
-
+        # crop = resample(im, crop_bbox, [args.output_size, args.output_size], [0, 0, 0])
         cv2.imwrite(join(crop_base_path, '{:08d}.jpg'.format(count)), np.transpose(crop[:, :, :], (1, 2, 0)))
         # cv2.imwrite('crop.jpg'.format(count), np.transpose(crop[:, :, :], (1, 2, 0)))
 
-        is_not_end[count] = 0 if f == frames else 1
         imdb['down_index'][count] = f
         imdb['up_index'][count] = n_frames - f
         count += 1
@@ -80,10 +78,10 @@ for snap in snaps:
             print("Processed {} images in {:.2f} seconds. "
                   "{:.2f} images/second.".format(count, elapsed, count / elapsed))
 
-template_id = np.where(is_not_end != 0)[0]  # NEVER use the last frame as template! I do not like bidirectional.
+template_id = np.where(imdb['up_index'] > 1)[0]  # NEVER use the last frame as template! I do not like bidirectional.
 rand_split = np.random.choice(len(template_id), len(template_id))
-imdb['train_set'] = rand_split[:(len(template_id)-num_val)]
-imdb['val_set'] = rand_split[(len(template_id)-num_val):]
+imdb['train_set'] = template_id[rand_split[:(len(template_id)-num_val)]]
+imdb['val_set'] = template_id[rand_split[(len(template_id)-num_val):]]
 print len(imdb['train_set'])
 print len(imdb['val_set'])
 
