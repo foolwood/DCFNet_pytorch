@@ -66,7 +66,6 @@ class TrackerConfig(object):
 
 
 config = TrackerConfig()
-target = torch.Tensor(config.y).cuda().unsqueeze(0).unsqueeze(0).repeat(args.batch_size, 1, 1, 1)  # for training
 
 model = DCFNet(config=config)
 model.cuda()
@@ -81,6 +80,7 @@ optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
                             weight_decay=args.weight_decay)
 
+target = torch.Tensor(config.y).cuda().unsqueeze(0).unsqueeze(0).repeat(args.batch_size * gpu_num, 1, 1, 1)  # for training
 # optionally resume from a checkpoint
 if args.resume:
     if isfile(args.resume):
@@ -207,7 +207,7 @@ def validate(val_loader, model, criterion):
 
             # compute output
             output = model(template, search)
-            loss = criterion(output, target)/template.size(0)
+            loss = criterion(output, target)/(args.batch_size * gpu_num)
 
             # measure accuracy and record loss
             losses.update(loss.item())

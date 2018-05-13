@@ -16,7 +16,8 @@ args = parse.parse_args()
 print args
 
 
-def crop(image, bbox, out_sz, padding=(0, 0, 0)):
+def crop_hwc(image, bbox, out_sz, padding=(0, 0, 0)):
+    bbox = [float(x) for x in bbox]
     a = (out_sz-1) / (bbox[2]-bbox[0])
     b = (out_sz-1) / (bbox[3]-bbox[1])
     c = -a * bbox[0]
@@ -59,7 +60,7 @@ for snap in snaps:
         target_sz = np.array([bbox[2] - bbox[0], bbox[3] - bbox[1]])
         window_sz = target_sz * (1 + args.padding)
         crop_bbox = cxy_wh_2_bbox(target_pos, window_sz)
-        patch = crop(im, crop_bbox, args.output_size)
+        patch = crop_hwc(im, crop_bbox, args.output_size)
         cv2.imwrite(join(crop_base_path, '{:08d}.jpg'.format(count)), patch)
         # cv2.imwrite('crop.jpg'.format(count), patch)
 

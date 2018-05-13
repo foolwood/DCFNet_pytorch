@@ -1,6 +1,5 @@
 import torch  # pytorch 0.4.0! fft
 import torch.nn as nn
-import numpy as np
 
 
 def complex_mul(x, z):
@@ -33,8 +32,6 @@ class DCFNet(nn.Module):
     def __init__(self, config=None):
         super(DCFNet, self).__init__()
         self.feature = DCFNetFeature()
-        self.model_alphaf = []
-        self.model_xf = []
         self.config = config
 
     def forward(self, z, x):
@@ -44,9 +41,8 @@ class DCFNet(nn.Module):
         xf = torch.rfft(x, signal_ndim=2)
 
         kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True)
-        alphaf = self.config.yf / (kzzf + self.config.lambda0)
-
         kxzf = torch.sum(complex_mulconj(xf, zf), dim=1, keepdim=True)
+        alphaf = self.config.yf.to(device=z.device) / (kzzf + self.config.lambda0)  # very Ugly
         response = torch.irfft(complex_mul(kxzf, alphaf), signal_ndim=2)
         return response
 
