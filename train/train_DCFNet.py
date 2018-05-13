@@ -16,6 +16,7 @@ import time
 parser = argparse.ArgumentParser(description='Training DCFNet in Pytorch 0.4.0')
 parser.add_argument('--input_sz', dest='input_sz', default=125, type=int, help='crop input size')
 parser.add_argument('--padding', dest='padding', default=2.0, type=float, help='crop padding size')
+parser.add_argument('--range', dest='range', default=10, type=int, help='select range')
 parser.add_argument('--epochs', default=50, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
@@ -76,7 +77,6 @@ if gpu_num > 1:
 
 criterion = nn.MSELoss(size_average=False).cuda()
 
-a = model.parameters()
 optimizer = torch.optim.SGD(model.parameters(), args.lr,
                             momentum=args.momentum,
                             weight_decay=args.weight_decay)
@@ -107,8 +107,8 @@ save_path = join(args.save, 'crop_{:d}_{:1.1f}'.format(args.input_sz, args.paddi
 if not isdir(save_path):
     makedirs(save_path)
 
-train_dataset = VID(root=crop_base_path, train=True)
-val_dataset = VID(root=crop_base_path, train=False)
+train_dataset = VID(root=crop_base_path, train=True, range=args.range)
+val_dataset = VID(root=crop_base_path, train=False, range=args.range)
 
 train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=args.batch_size*gpu_num, shuffle=True,
@@ -120,7 +120,6 @@ val_loader = torch.utils.data.DataLoader(
 
 
 def adjust_learning_rate(optimizer, epoch):
-    """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lr = np.logspace(-2, -5, num=args.epochs)[epoch]
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr

@@ -6,9 +6,8 @@ import torch
 
 import cv2
 import time as time
-from util import cxy_wh_2_rect1, rect1_2_cxy_wh, gaussian_shaped_labels, cxy_wh_2_bbox
+from util import crop_chw, gaussian_shaped_labels, cxy_wh_2_rect1, rect1_2_cxy_wh, cxy_wh_2_bbox
 from net import DCFNet
-from sample import resample
 from eval_otb import eval_auc
 
 
@@ -19,7 +18,7 @@ class TrackerConfig(object):
     crop_sz = 125
 
     lambda0 = 1e-4
-    padding = 2.0
+    padding = 2
     output_sigma_factor = 0.1
     interp_factor = 0.01
     num_scale = 3
@@ -34,7 +33,7 @@ class TrackerConfig(object):
     net_average_image = np.array([104, 117, 123]).reshape(-1, 1, 1).astype(np.float32)
     output_sigma = crop_sz / (1 + padding) * output_sigma_factor
     y = gaussian_shaped_labels(output_sigma, net_input_size)
-    yf = torch.rfft(torch.Tensor(y).view(1, 1, crop_sz, crop_sz).cuda(), signal_ndim=2, normalized=False)
+    yf = torch.rfft(torch.Tensor(y).view(1, 1, crop_sz, crop_sz).cuda(), signal_ndim=2)
     cos_window = torch.Tensor(np.outer(np.hanning(crop_sz), np.hanning(crop_sz))).cuda()
 
 
@@ -56,8 +55,7 @@ class DCFNetTraker(object):
         # crop template
         window_sz = target_sz * (1 + config.padding)
         bbox = cxy_wh_2_bbox(target_pos, window_sz)
-        patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
-        # cv2.imwrite('crop.jpg', np.transpose(patch[::-1,:,:], (1, 2, 0)))
+        patch = crop_chw(im, bbox, self.config.crop_sz)
 
         target = patch - config.net_average_image
         self.net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda())
@@ -68,12 +66,12 @@ class DCFNetTraker(object):
         for i in range(self.config.num_scale):  # crop multi-scale search region
             window_sz = self.target_sz * (self.config.scale_factor[i] * (1 + self.config.padding))
             bbox = cxy_wh_2_bbox(self.target_pos, window_sz)
-            self.patch_crop[i, :] = resample(im, bbox, self.config.net_input_size, [0, 0, 0])
+            self.patch_crop[i, :] = crop_chw(im, bbox, self.config.crop_sz)
 
         search = self.patch_crop - self.config.net_average_image
 
         if self.gpu:
-            response = self.net(torch.Tensor(search).cuda()).cpu()
+            response = self.net(torch.Tensor(search).cuda())
         else:
             response = self.net(torch.Tensor(search))
         peak, idx = torch.max(response.view(self.config.num_scale, -1), 1)
@@ -93,7 +91,7 @@ class DCFNetTraker(object):
         # model update
         window_sz = self.target_sz * (1 + self.config.padding)
         bbox = cxy_wh_2_bbox(self.target_pos, window_sz)
-        patch = resample(im, bbox, self.config.net_input_size, [0, 0, 0])
+        patch = crop_chw(im, bbox, self.config.crop_sz)
         target = patch - self.config.net_average_image
         self.net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda(), lr=self.config.interp_factor)
 
@@ -102,7 +100,7 @@ class DCFNetTraker(object):
 
 if __name__ == '__main__':
     # base dataset path and setting
-    dataset = 'OTB2015'
+    dataset = 'OTB2013'
     base_path = join('dataset', dataset)
     json_path = join('dataset', dataset + '.json')
     annos = json.load(open(json_path, 'r'))
@@ -115,11 +113,10 @@ if __name__ == '__main__':
     config = TrackerConfig()
     net = DCFNet(config)
     net.load_param(config.feature_path)
-    net.eval()
-    net.cuda()
+    #net.load_param('crop_125_2.0/checkpoint.pth.tar')
+    net.eval().cuda()
 
     speed = []
-
     # loop videos
     for video_id, video in enumerate(videos):  # run without resetting
         video_path_name = annos[video]['name']
@@ -140,8 +137,7 @@ if __name__ == '__main__':
         # crop template
         window_sz = target_sz * (1 + config.padding)
         bbox = cxy_wh_2_bbox(target_pos, window_sz)
-        patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
-        # cv2.imwrite('crop.jpg', np.transpose(patch[::-1,:,:], (1, 2, 0)))
+        patch = crop_chw(im, bbox, config.crop_sz)
 
         target = patch - config.net_average_image
         net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda())
@@ -154,15 +150,12 @@ if __name__ == '__main__':
             for i in range(config.num_scale):  # crop multi-scale search region
                 window_sz = target_sz * (config.scale_factor[i] * (1 + config.padding))
                 bbox = cxy_wh_2_bbox(target_pos, window_sz)
-                patch_crop[i, :] = resample(im, bbox, config.net_input_size, [0, 0, 0])
-                # cv2.imwrite('crop2.jpg', np.transpose(patch_crop[0,::-1,:,:], (1, 2, 0)))
-                # cv2.imshow('crop.jpg', np.transpose(patch_crop[i], (1, 2, 0)).astype(np.float32) / 255)
-                # cv2.waitKey(0)
+                patch_crop[i, :] = crop_chw(im, bbox, config.crop_sz)
 
             search = patch_crop - config.net_average_image
-            response = net(torch.Tensor(search).cuda()).cpu()
+            response = net(torch.Tensor(search).cuda())
             peak, idx = torch.max(response.view(config.num_scale, -1), 1)
-            peak = peak.data.numpy() * config.scale_penalties
+            peak = peak.data.cpu().numpy() * config.scale_penalties
             best_scale = np.argmax(peak)
             r_max, c_max = np.unravel_index(idx[best_scale], config.net_input_size)
 
@@ -178,7 +171,7 @@ if __name__ == '__main__':
             # model update
             window_sz = target_sz * (1 + config.padding)
             bbox = cxy_wh_2_bbox(target_pos, window_sz)
-            patch = resample(im, bbox, config.net_input_size, [0, 0, 0])
+            patch = crop_chw(im, bbox, config.crop_sz)
             target = patch - config.net_average_image
             net.update(torch.Tensor(np.expand_dims(target, axis=0)).cuda(), lr=config.interp_factor)
 
@@ -199,7 +192,7 @@ if __name__ == '__main__':
         print('{:3d} Video: {:12s} Time: {:3.1f}s\tSpeed: {:3.1f}fps'.format(video_id, video, toc, fps))
 
         # save result
-        test_path = './result/OTB2015/DCFNet_test/'
+        test_path = join('result', dataset, 'DCFNet_test')
         if not isdir(test_path): makedirs(test_path)
         result_path = join(test_path, video + '.txt')
         with open(result_path, 'w') as f:
@@ -208,4 +201,4 @@ if __name__ == '__main__':
 
     print('***Total Mean Speed: {:3.1f} (FPS)***'.format(np.mean(speed)))
 
-    eval_auc('OTB2015', 'DCFNet_test', 0, 1)
+    eval_auc(dataset, 'DCFNet_test', 0, 1)

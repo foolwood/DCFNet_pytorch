@@ -61,7 +61,7 @@ def tune_otb(param):
             f.write(','.join(['{:.2f}'.format(i) for i in x]) + '\n')
 
 
-params = {'dataset':['OTB2015'], 'network':['param.pth'],
+params = {'dataset':['OTB2013'], 'network':['param.pth'],
           'scale_step':np.arange(1.01, 1.05, 0.005, np.float32),
           'scale_penalty':np.arange(0.98, 1.0, 0.025, np.float32),
           'interp_factor':np.arange(0.001, 0.015, 0.001, np.float32)}

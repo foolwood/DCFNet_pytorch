@@ -61,7 +61,11 @@ class DCFNet(nn.Module):
             self.model_zf = (1 - lr) * self.model_zf.data + lr * zf.data
 
     def load_param(self, path='param.pth'):
-        self.feature.load_state_dict(torch.load(path))
+        checkpoint = torch.load(path)
+        if 'state_dict' in checkpoint.keys():
+            self.load_state_dict(checkpoint['state_dict'])
+        else:
+            self.feature.load_state_dict(torch.load(path))
 
 
 if __name__ == '__main__':

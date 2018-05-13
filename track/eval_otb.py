@@ -132,7 +132,7 @@ def eval_auc(dataset='OTB2015', tracker_reg='S*', start=0, end=1e6):
 
         print('\nOTB2013 Best: %s(%.4f)' % (max_name_OTB2013, max_auc_OTB2013))
         print('\nOTB2015 Best: %s(%.4f)' % (max_name, max_auc))
-    elif 'TC128' == dataset:
+    else:
         max_auc = 0.
         max_name = ''
         for i in range(len(trackers)):
@@ -142,7 +142,7 @@ def eval_auc(dataset='OTB2015', tracker_reg='S*', start=0, end=1e6):
                 max_name = trackers[i]
             print('%s(%.4f)' % (trackers[i], auc))
 
-        print('\nTC128 Best: %s(%.4f)' % (max_name, max_auc))
+        print('\n%s Best: %s(%.4f)' % (dataset, max_name, max_auc))
 
 
 if __name__ == "__main__":

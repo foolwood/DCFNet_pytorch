@@ -6,7 +6,7 @@ import numpy as np
 
 
 class VID(data.Dataset):
-    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_2.0', range=100, train=True):
+    def __init__(self, file='dataset/dataset.json', root='dataset/crop_125_2.0', range=10, train=True):
         self.imdb = json.load(open(file, 'r'))
         self.root = root
         self.range = range
@@ -22,7 +22,7 @@ class VID(data.Dataset):
         # range_down = self.imdb['down_index'][target_id]
         range_up = self.imdb['up_index'][target_id]
         # search_id = np.random.randint(-min(range_down, self.range), min(range_up, self.range)) + target_id
-        search_id = np.random.randint(1, min(range_up, self.range)) + target_id
+        search_id = np.random.randint(1, min(range_up, self.range+1)) + target_id
 
         target = cv2.imread(join(self.root, '{:08d}.jpg'.format(target_id)))
         search = cv2.imread(join(self.root, '{:08d}.jpg'.format(search_id)))

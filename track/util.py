@@ -1,4 +1,5 @@
 import numpy as np
+import cv2
 
 
 def cxy_wh_2_rect1(pos, sz):
@@ -20,6 +21,17 @@ def gaussian_shaped_labels(sigma, sz):
     g = np.roll(g, int(-np.floor(float(sz[0]) / 2.) + 1), axis=0)
     g = np.roll(g, int(-np.floor(float(sz[1]) / 2.) + 1), axis=1)
     return g
+
+
+def crop_chw(image, bbox, out_sz, padding=(0, 0, 0)):
+    a = (out_sz-1) / (bbox[2]-bbox[0])
+    b = (out_sz-1) / (bbox[3]-bbox[1])
+    c = -a * bbox[0]
+    d = -b * bbox[1]
+    mapping = np.array([[a, 0, c],
+                        [0, b, d]]).astype(np.float)
+    crop = cv2.warpAffine(image, mapping, (out_sz, out_sz), borderMode=cv2.BORDER_CONSTANT, borderValue=padding)
+    return np.transpose(crop, (2, 0, 1))
 
 
 if __name__ == '__main__':
