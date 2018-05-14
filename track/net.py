@@ -62,10 +62,19 @@ class DCFNet(nn.Module):
 
     def load_param(self, path='param.pth'):
         checkpoint = torch.load(path)
-        if 'state_dict' in checkpoint.keys():
-            self.load_state_dict(checkpoint['state_dict'])
+        if 'state_dict' in checkpoint.keys():  # from training result
+            state_dict = checkpoint['state_dict'] 
+            if 'module' in state_dict.keys()[0]:  # train with nn.DataParallel
+                from collections import OrderedDict
+                new_state_dict = OrderedDict()
+                for k, v in state_dict.items():
+                    name = k[7:]  # remove `module.`
+                    new_state_dict[name] = v
+                self.load_state_dict(new_state_dict)
+            else:
+                self.load_state_dict(state_dict)
         else:
-            self.feature.load_state_dict(torch.load(path))
+            self.feature.load_state_dict(checkpoint)
 
 
 if __name__ == '__main__':

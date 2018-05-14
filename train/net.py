@@ -32,7 +32,8 @@ class DCFNet(nn.Module):
     def __init__(self, config=None):
         super(DCFNet, self).__init__()
         self.feature = DCFNetFeature()
-        self.config = config
+        self.yf = config.yf.clone()
+        self.lambda0 = config.lambda0
 
     def forward(self, z, x):
         z = self.feature(z)
@@ -42,7 +43,7 @@ class DCFNet(nn.Module):
 
         kzzf = torch.sum(torch.sum(zf ** 2, dim=4, keepdim=True), dim=1, keepdim=True)
         kxzf = torch.sum(complex_mulconj(xf, zf), dim=1, keepdim=True)
-        alphaf = self.config.yf.to(device=z.device) / (kzzf + self.config.lambda0)  # very Ugly
+        alphaf = self.yf.to(device=z.device) / (kzzf + self.lambda0)  # very Ugly
         response = torch.irfft(complex_mul(kxzf, alphaf), signal_ndim=2)
         return response
 

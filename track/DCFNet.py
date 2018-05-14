@@ -1,5 +1,6 @@
 from os.path import join, isdir
 from os import makedirs
+import argparse
 import json
 import numpy as np
 import torch
@@ -100,7 +101,13 @@ class DCFNetTraker(object):
 
 if __name__ == '__main__':
     # base dataset path and setting
-    dataset = 'OTB2013'
+    parser = argparse.ArgumentParser(description='Test DCFNet on OTB')
+    parser.add_argument('--dataset', metavar='SET', default='OTB2013',
+                        choices=['OTB2013', 'OTB2015'], help='tune on which dataset')
+    parser.add_argument('--model', metavar='PATH', default='param.pth')
+    args = parser.parse_args()
+
+    dataset = args.dataset
     base_path = join('dataset', dataset)
     json_path = join('dataset', dataset + '.json')
     annos = json.load(open(json_path, 'r'))
@@ -112,8 +119,7 @@ if __name__ == '__main__':
     # default parameter and load feature extractor network
     config = TrackerConfig()
     net = DCFNet(config)
-    net.load_param(config.feature_path)
-    #net.load_param('crop_125_2.0/checkpoint.pth.tar')
+    net.load_param(args.model)
     net.eval().cuda()
 
     speed = []
