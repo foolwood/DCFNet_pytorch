@@ -1,4 +1,4 @@
-# DCFNet_pytorch
+# DCFNet_pytorch<sub>([arXiv](https://arxiv.org/pdf/1704.04057.pdf))</sub>
 
 This repository contains a Python *reimplementation* of the [**DCFNet**](https://arxiv.org/pdf/1704.04057.pdf).
 
@@ -13,7 +13,7 @@ This repository contains a Python *reimplementation* of the [**DCFNet**](https:/
 1. [Requirements](#requirements)
 2. [Test](#test)
 3. [Train](#train)
-4. [Citing DCFNet](#citing dcfnet)
+4. [Citing DCFNet](#citing-dcfnet)
 
 ## Requirements
 
@@ -35,6 +35,7 @@ Training data (VID) and Test dataset (OTB).
 ```shell
 cd DCFNet_pytorch/track 
 ln -s /path/to/your/OTB2015 ./dataset/OTB2015
+ln -s ./dataset/OTB2015 ./dataset/OTB2013
 cd dataset & python gen_otb2013.py
 python DCFNet.py
 ```
@@ -71,7 +72,7 @@ python DCFNet.py
    python crop_image.py  # crop and generate a json for dataloader
    ```
 
-3. Training. (on multiple ***GPUs***. )
+3. Training. (on multiple ***GPUs*** :zap: :zap: :zap: :zap:)
 
    ```
    cd DCFNet_pytorch/train/
