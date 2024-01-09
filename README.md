@@ -1,4 +1,19 @@
-# DCFNet_pytorch<sub>([arXiv](https://arxiv.org/pdf/1704.04057.pdf))</sub>
+# DCFNet_pytorch<sub>([JCST](https://jcst.ict.ac.cn/en/article/doi/10.1007/s11390-023-3788-3))</sub>
+
+[️‍🔥News️‍🔥] DCFNet is accepted in JCST. If you find [**DCFNet**](https://arxiv.org/pdf/1704.04057.pdf) useful in your research, please consider citing:
+
+```
+@Article{JCST-2309-13788,
+title = {DCFNet: Discriminant Correlation Filters Network for Visual Tracking},
+journal = {Journal of Computer Science and Technology},
+year = {2023},
+issn = {1000-9000(Print) /1860-4749(Online)},
+doi = {10.1007/s11390-023-3788-3},	
+author = {Wei-Ming Hu and Qiang Wang and Jin Gao and Bing Li and Stephen Maybank}
+}
+```
+
+
 
 This repository contains a Python *reimplementation* of the [**DCFNet**](https://arxiv.org/pdf/1704.04057.pdf).
 
